@@ -1,7 +1,7 @@
 # Assignment_ACC_DE
 
 
-Stock data from Alphavintage - Monthly timeseries for any stock with defined interval 60 min (used free api token stored in the Airflow Variables - feel free to use the API_KEY in the .env)
+Stock data from Alphavantage - Monthly timeseries for any stock with defined interval 60 min (used free api token stored in the Airflow Variables - feel free to use the API_KEY in the .env)
 https://www.alphavantage.co/documentation/#time-series-data
 <br>
 DAG scheduled monthly, starting with 2023-03-01 with the catchup feature for the bonus task
