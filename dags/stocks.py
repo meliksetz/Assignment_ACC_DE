@@ -14,7 +14,7 @@ def _process_data(ti):
 
     for snapshot_time, metrics in time_series_data.items():
         record = {
-            'symbol': 'ACC',
+            'symbol': 'ACN',
             'open': float(metrics['1. open']),
             'high': float(metrics['2. high']),
             'low': float(metrics['3. low']),
@@ -26,6 +26,14 @@ def _process_data(ti):
         processed_data.append(record)
 
     ti.xcom_push(key='processed_data', value=process_data)
+
+def _store_to_csv(ti):
+    processed_data = ti.xcom_pull(task_ids='process_data', key='processed_data')
+
+    csv_file_path=f'/tmp/processed_data_{datetime.now()}.csv',
+    processed_data.to_csv(csv_file_path, index=None, header=False)
+
+
 
 
 with DAG('stock_processing', start_date=datetime(2024, 3, 8),
@@ -55,7 +63,7 @@ with DAG('stock_processing', start_date=datetime(2024, 3, 8),
         endpoint='query',
         data={
             'function': 'TIME_SERIES_INTRADAY',
-            'symbol': 'ACC',
+            'symbol': 'ACN',
             'interval': '60min',
             'outputsize': 'full',
             'apikey': '{{ var.value.API_KEY }}'
@@ -67,5 +75,10 @@ with DAG('stock_processing', start_date=datetime(2024, 3, 8),
     process_data=PythonOperator(
         task_id='process_user',
         python_callable=_process_data
+    )
+
+    store_to_csv=PythonOperator(
+        task_id='store_to_csv',
+        python_callable=_store_to_csv
     )
 
