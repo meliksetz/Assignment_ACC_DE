@@ -6,3 +6,4 @@ venv/
 airflow.cfg
 webserver_config.py
 unittests.cfg
+.env

@@ -1,5 +1,8 @@
+import json
+
 from airflow import DAG
 from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.http.operators.http import SimpleHttpOperator
 from datetime import datetime
 
 
@@ -22,4 +25,20 @@ with DAG('stock_processing', start_date=datetime(2024, 3, 8),
         load TIMESTAMP NOT NULL,
         )
         '''
+    )
+
+    extract_data = SimpleHttpOperator(
+        task_id='extract_data',
+        http_conn_id='alphavantage-api',
+        method='GET',
+        endpoint='query',
+        data={
+            'function': 'TIME_SERIES_INTRADAY',
+            'symbol': 'ACC',
+            'interval': '60min',
+            'outputsize': 'full',
+            'apikey': '{{ var.value.API_KEY }}'
+        },
+        response_filter=lambda response:json.loads(response.text),
+        log_response=True
     )
