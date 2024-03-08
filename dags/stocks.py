@@ -55,8 +55,8 @@ def _process_data_to_db(ti):
     )
 
 
-with DAG('stock_processing', start_date=datetime(2024, 3, 8),
-         schedule='@monthly', catchup=False) as dag:
+with DAG('stock_processing', start_date=datetime(2023, 3, 1),
+         schedule='@monthly', catchup=True) as dag:
 
     create_table = PostgresOperator(
         task_id='create_table',
@@ -76,6 +76,7 @@ with DAG('stock_processing', start_date=datetime(2024, 3, 8),
     )
 
     extract_data = SimpleHttpOperator(
+
         task_id='extract_data',
         http_conn_id='alphavantage-api',
         method='GET',
@@ -86,7 +87,7 @@ with DAG('stock_processing', start_date=datetime(2024, 3, 8),
             'interval': '60min',
             'outputsize': 'full',
             'apikey': '{{ var.value.API_KEY }}',
-            'month' : '2012-01'
+            'month' : '{{ execution_date.strftime("%Y-%m")}}'
         },
         response_filter=lambda response:json.loads(response.text),
         log_response=True
