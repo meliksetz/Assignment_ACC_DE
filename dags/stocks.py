@@ -3,9 +3,29 @@ import json
 from airflow import DAG
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.providers.http.operators.http import SimpleHttpOperator
+from airflow.operators.python import PythonOperator
 from datetime import datetime
 
+def _process_data(ti):
+    data=ti.xcom_pull(task_ids='extract_data')
+    time_series_data = data['Time Series (60min)']
 
+    processed_data = []
+
+    for snapshot_time, metrics in time_series_data.items():
+        record = {
+            'symbol': 'ACC',
+            'open': float(metrics['1. open']),
+            'high': float(metrics['2. high']),
+            'low': float(metrics['3. low']),
+            'close': float(metrics['4. close']),
+            'volume': int(metrics['5. volume']),
+            'snapshot_time': datetime.strptime(snapshot_time, '%Y-%m-%d %H:%M:%S'),
+            'load_time': datetime.now(),
+        }
+        processed_data.append(record)
+
+    ti.xcom_push(key='processed_data', value=process_data)
 
 
 with DAG('stock_processing', start_date=datetime(2024, 3, 8),
@@ -22,7 +42,8 @@ with DAG('stock_processing', start_date=datetime(2024, 3, 8),
         low FLOAT NOT NULL,
         close FLOAT NOT NULL,
         volume BIGINT NOT NULL,
-        load TIMESTAMP NOT NULL,
+        snapshot_time TIMESTAMP NOT NULL,
+        load_time TIMESTAMP NOT NULL,
         )
         '''
     )
@@ -42,3 +63,9 @@ with DAG('stock_processing', start_date=datetime(2024, 3, 8),
         response_filter=lambda response:json.loads(response.text),
         log_response=True
     )
+
+    process_data=PythonOperator(
+        task_id='process_user',
+        python_callable=_process_data
+    )
+
