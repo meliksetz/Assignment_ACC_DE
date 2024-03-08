@@ -1,0 +1,8 @@
+# created by virtualenv automatically
+logs/
+*.pyc
+*.db
+venv/
+airflow.cfg
+webserver_config.py
+unittests.cfg
