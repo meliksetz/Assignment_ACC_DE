@@ -4,6 +4,7 @@ from airflow import DAG
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.providers.http.operators.http import SimpleHttpOperator
 from airflow.operators.python import PythonOperator
+from airflow.providers.postgres.hooks.postgres import PostgresHook
 from datetime import datetime
 
 def _process_data(ti):
@@ -25,15 +26,25 @@ def _process_data(ti):
         }
         processed_data.append(record)
 
-    ti.xcom_push(key='processed_data', value=process_data)
+    ti.xcom_push(key='processed_data', value=processed_data)
 
-def _store_to_csv(ti):
+def _process_data_to_csv(ti):
     processed_data = ti.xcom_pull(task_ids='process_data', key='processed_data')
 
-    csv_file_path=f'/tmp/processed_data_{datetime.now()}.csv',
+    today_str = datetime.today().strftime("%Y-%m-%d")
+    csv_file_path=f'/tmp/stocks/processed_data_{today_str}.csv',
     processed_data.to_csv(csv_file_path, index=None, header=False)
 
+    ti.xcom_push(key='csv_file_path', value=csv_file_path)
 
+def _process_data_to_db(ti):
+    csv_file_path = ti.xcom_pull(task_ids='process_data_to_csv', key='csv_file_path')
+
+    hook = PostgresHook(postgress_conn_id='postgres')
+    hook.copy_expert(
+        sql="COPY stocks from stdin WITH DELIMETER as ','",
+        file_name=csv_file_path
+    )
 
 
 with DAG('stock_processing', start_date=datetime(2024, 3, 8),
@@ -66,7 +77,8 @@ with DAG('stock_processing', start_date=datetime(2024, 3, 8),
             'symbol': 'ACN',
             'interval': '60min',
             'outputsize': 'full',
-            'apikey': '{{ var.value.API_KEY }}'
+            'apikey': '{{ var.value.API_KEY }}',
+            'month' : '2012-01'
         },
         response_filter=lambda response:json.loads(response.text),
         log_response=True
@@ -77,8 +89,15 @@ with DAG('stock_processing', start_date=datetime(2024, 3, 8),
         python_callable=_process_data
     )
 
-    store_to_csv=PythonOperator(
-        task_id='store_to_csv',
-        python_callable=_store_to_csv
+    process_data_to_csv=PythonOperator(
+        task_id='process_data_to_csv',
+        python_callable=_process_data_to_csv
     )
+
+    process_data_to_db = PythonOperator(
+        task_id='store_data',
+        python_callable=_process_data_to_db
+    )
+
+create_table >> extract_data >> process_data >> process_data_to_csv >> process_data_to_db
 
