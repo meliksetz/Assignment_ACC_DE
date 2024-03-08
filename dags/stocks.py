@@ -10,15 +10,18 @@ import os
 
 import pandas as pd
 
+
+
 def _process_data(ti):
     data=ti.xcom_pull(task_ids='extract_data')
     time_series_data = data['Time Series (60min)']
 
     processed_data = []
 
+
     for snapshot_time, metrics in time_series_data.items():
         record = {
-            'symbol': 'ACN',
+            'symbol': '{{ dag_run.conf["stock"] }}',
             'open': float(metrics['1. open']),
             'high': float(metrics['2. high']),
             'low': float(metrics['3. low']),
@@ -83,7 +86,7 @@ with DAG('stock_processing', start_date=datetime(2023, 3, 1),
         endpoint='query',
         data={
             'function': 'TIME_SERIES_INTRADAY',
-            'symbol': 'ACN',
+            'symbol': '{{dag_run.conf["stock"]}}',
             'interval': '60min',
             'outputsize': 'full',
             'apikey': '{{ var.value.API_KEY }}',
