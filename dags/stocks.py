@@ -6,6 +6,9 @@ from airflow.providers.http.operators.http import SimpleHttpOperator
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from datetime import datetime
+import os
+
+import pandas as pd
 
 def _process_data(ti):
     data=ti.xcom_pull(task_ids='extract_data')
@@ -21,8 +24,8 @@ def _process_data(ti):
             'low': float(metrics['3. low']),
             'close': float(metrics['4. close']),
             'volume': int(metrics['5. volume']),
-            'snapshot_time': datetime.strptime(snapshot_time, '%Y-%m-%d %H:%M:%S'),
-            'load_time': datetime.now(),
+            'snapshot_time': datetime.strptime(snapshot_time, '%Y-%m-%d %H:%M:%S').isoformat(),
+            'load_time': datetime.now().isoformat(),
         }
         processed_data.append(record)
 
@@ -32,18 +35,23 @@ def _process_data_to_csv(ti):
     processed_data = ti.xcom_pull(task_ids='process_data', key='processed_data')
 
     today_str = datetime.today().strftime("%Y-%m-%d")
-    csv_file_path=f'/tmp/stocks/processed_data_{today_str}.csv',
-    processed_data.to_csv(csv_file_path, index=None, header=False)
+    directory = '/tmp/stocks'
+    csv_file_path=f'/tmp/stocks/processed_data_{today_str}.csv'
+    df = pd.DataFrame(processed_data)
+
+    os.makedirs(directory, exist_ok=True)
+
+    df.to_csv(csv_file_path, index=None, header=False)
 
     ti.xcom_push(key='csv_file_path', value=csv_file_path)
 
 def _process_data_to_db(ti):
     csv_file_path = ti.xcom_pull(task_ids='process_data_to_csv', key='csv_file_path')
 
-    hook = PostgresHook(postgress_conn_id='postgres')
+    hook = PostgresHook(postgres_conn_id='postgres')
     hook.copy_expert(
-        sql="COPY stocks from stdin WITH DELIMETER as ','",
-        file_name=csv_file_path
+        sql="COPY stocks from stdin WITH DELIMITER as ','",
+        filename=csv_file_path
     )
 
 
@@ -62,7 +70,7 @@ with DAG('stock_processing', start_date=datetime(2024, 3, 8),
         close FLOAT NOT NULL,
         volume BIGINT NOT NULL,
         snapshot_time TIMESTAMP NOT NULL,
-        load_time TIMESTAMP NOT NULL,
+        load_time TIMESTAMP NOT NULL
         )
         '''
     )
@@ -85,7 +93,7 @@ with DAG('stock_processing', start_date=datetime(2024, 3, 8),
     )
 
     process_data=PythonOperator(
-        task_id='process_user',
+        task_id='process_data',
         python_callable=_process_data
     )
 
